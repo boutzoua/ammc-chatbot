@@ -15,25 +15,17 @@ from phi.tools.yfinance import YFinanceTools
 import asyncio
 from dotenv import load_dotenv
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-
-# ✅ OpenAI API Key
-OPENAI_API_KEY = "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"
-
-# ✅ ChromaDB Path
 CHROMADB_PATH = "./chroma_db"
 
-# ✅ Best OpenAI embedding model
 EMBEDDING_MODEL = "text-embedding-3-large"
 
-# ✅ FastAPI App
 app = FastAPI(title="Financial Chatbot", version="1.0")
 
 # ✅ Store Chat History
 session_history = {}
 
-# ✅ Financial RAG Prompt
 sophisticated_prompt = """
 ## Role:
 You are a professional financial consultant with access to a structured database of company financial reports from AMMC.
@@ -97,7 +89,7 @@ knowledge_base = LangChainKnowledgeBase(retriever=retriever)
 
 storage = SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db")
 
-# ✅ Create Phidata Agent
+
 knowledge_agent = Agent(
         model=OpenAIChat(id='gpt-4o-mini'),
         name="Financial Analyst",

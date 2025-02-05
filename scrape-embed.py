@@ -10,46 +10,37 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from urllib.parse import urljoin
+from dotenv import load_dotenv
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# ✅ Set your OpenAI API key directly
-OPENAI_API_KEY = "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"
 
-# 🔹 Use the best OpenAI embedding model
 EMBEDDING_MODEL = "text-embedding-3-large"
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Base URL with pagination
 base_url = "https://www.ammc.ma/fr/liste-etats-financiers-emetteurs?field_emetteur_target_id_verf=All&field_annee_value_1=All&page="
 base_site = "https://www.ammc.ma"
 data_dir = "pdf_documents"
 os.makedirs(data_dir, exist_ok=True)
 
-# Initialize ChromaDB (Persistent storage)
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 chroma_collection = chroma_client.get_or_create_collection(name="ammc_reports")
 
-# OpenAI Embeddings with the best model
 openai_embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL, openai_api_key=OPENAI_API_KEY)
 
-# Store all scraped data
 all_data = []
 
-# Loop through all pages (1 to 220)
 for page in range(18):
     url = f"{base_url}{page}"
     print(f"🔍 Scraping page {page + 1}...")
 
-    # Send request
     response = requests.get(url, verify=False)
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Find table rows
     rows = soup.find_all('tr')
 
     for row in rows:
-        # 🔹 Extract Émetteur (Company Name) - The **second <a>** inside the column
         emetteur_tag = row.find('td', class_='views-field-field-emetteur')
         emetteur = "N/A"
         if emetteur_tag:
@@ -57,11 +48,9 @@ for page in range(18):
             if len(emetteur_links) > 1:
                 emetteur = emetteur_links[1].get_text(strip=True)
 
-        # 🔹 Extract Année (Year)
         annee_tag = row.find('td', class_='views-field-field-annee')
         annee = annee_tag.find('time').get_text(strip=True) if annee_tag else "N/A"
 
-        # 🔹 Extract Type Rapport & Link
         type_rapport_tag = row.find('td', class_='views-field-field-type-rapp-ef-em')
         if type_rapport_tag and type_rapport_tag.find('a'):
             type_rapport_link = base_site + type_rapport_tag.find('a')['href']
@@ -71,11 +60,10 @@ for page in range(18):
 
         if type_rapport_link == "N/A":
             print(f"⚠️ No valid report link found for {emetteur} ({annee}). Skipping.")
-            continue  # Skip if no valid link
+            continue  
 
         print(f" valid report link found fo {emetteur} ({annee}).")
 
-        # 🔹 Request PDF Page
         response_pdf = requests.get(type_rapport_link, verify=False)
         soup_pdf = BeautifulSoup(response_pdf.content, 'html.parser')
         document = soup_pdf.find('span', class_='file--mime-application-pdf')
@@ -84,10 +72,8 @@ for page in range(18):
             pdf_link = document.find('a', href=True)['href']
             pdf_name = document.find('a', href=True).get_text(strip=True)
 
-            # ✅ Ensure correct URL handling
             pdf_url = base_site + pdf_link if not pdf_link.startswith("http") else pdf_link
 
-            # ✅ Download PDF
             pdf_path = os.path.join(data_dir, pdf_name.replace("/", "_") + ".pdf")
             pdf_response = requests.get(pdf_url, verify=False)
 
@@ -96,7 +82,6 @@ for page in range(18):
 
             print(f"📄 Downloaded: {pdf_name} ({pdf_url})")
 
-            # 🔹 Extract PDF Content
             extracted_text = ""
             try:
                 with pdfplumber.open(pdf_path) as pdf:
@@ -108,44 +93,30 @@ for page in range(18):
             except Exception as e:
                 print(f"⚠️ Error extracting PDF {pdf_name}: {e}")
 
-            # 🔹 Skip empty PDFs to avoid `ValueError`
             if not extracted_text.strip():
                 print(f"⚠️ Skipping embedding for {pdf_name} (Empty content).")
                 continue
 
-            # 🔹 Split text into chunks for embedding
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             documents = text_splitter.split_text(extracted_text)
 
-            # 🔹 Convert to LangChain Document format
             langchain_docs = [
                 Document(page_content=text, metadata={"source": pdf_name, "url": pdf_url, "emetteur": emetteur, "annee": annee})
                 for text in documents
             ]
 
-            # 🔹 Store embeddings in ChromaDB using the best model
             try:
                 vector_db = Chroma.from_documents(langchain_docs, openai_embeddings, persist_directory="./chroma_db")
             except ValueError as ve:
                 print(f"⚠️ Skipping {pdf_name} due to empty embeddings: {ve}")
                 continue
 
-            # 🔹 Store metadata
             all_data.append([emetteur, annee, type_rapport_text, pdf_url, pdf_name])
 
     time.sleep(2)  # Avoid getting blocked
 
-# 🔹 Save metadata to CSV
 df = pd.DataFrame(all_data, columns=["Émetteur", "Année", "Type Rapport", "PDF URL", "PDF Name"])
 df.to_csv("financial_reports_metadata.csv", index=False, encoding='utf-8')
 
 print("✅ Scraping completed, PDFs saved, and embeddings stored in ChromaDB.")
 
-
-# echo "# ammc-chatbot" >> README.md
-# git init
-# git add README.md
-# git commit -m "first commit"
-# git branch -M main
-# git remote add origin https://github.com/boutzoua/ammc-chatbot.git
-# git push -u origin main

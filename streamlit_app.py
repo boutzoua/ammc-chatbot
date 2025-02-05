@@ -7,14 +7,12 @@ import requests
 import base64
 import uuid
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Constants
 NUMBER_OF_MESSAGES_TO_DISPLAY = 20
 API_DOCS_URL = "https://docs.alpha-finance.com"
 
-# Streamlit Page Configuration
+
 st.set_page_config(
     page_title="AlphaFinance Assistant",
     page_icon="static/vv-b-logo.png",
@@ -33,7 +31,7 @@ def img_to_base64(image_path):
     
 API_URL = "http://localhost:8003"
 
-# Initialize session state
+
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if 'messages' not in st.session_state:
@@ -99,8 +97,7 @@ def main():
         initial_bot_message = "👋 Hello! How can I assist you with Finance today?"
         st.session_state.history.append({"role": "assistant", "content": initial_bot_message})
         st.session_state.conversation_history = initialize_conversation()
-    
-    # Load and display sidebar image
+    e
     img_path = "static/vv-b-logo.png"
     img_base64 = img_to_base64(img_path)
     if img_base64:
